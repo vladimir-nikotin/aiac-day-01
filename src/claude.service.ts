@@ -101,6 +101,7 @@ export class ClaudeService {
           max_tokens: this.config.getOrThrow<number>('claude.maxTokens'),
           messages: [...messages, question],
           model: DEFAULT_MODEL,
+          stop_sequences: stopSequences,
         }),
         dispatcher,
         headers,
