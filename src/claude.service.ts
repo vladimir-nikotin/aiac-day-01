@@ -48,6 +48,7 @@ type ClaudeResponse = {
 type UUID = string;
 type ClaudeServiceRequest = {
   message: string;
+  model?: string;
   sessionId: UUID;
   stopSequences: string[];
   temperature?: number;
@@ -71,6 +72,7 @@ export class ClaudeService {
 
   async fetchApi({
     message,
+    model,
     sessionId,
     stopSequences,
     temperature,
@@ -103,7 +105,7 @@ export class ClaudeService {
         body: JSON.stringify({
           max_tokens: this.config.getOrThrow<number>('claude.maxTokens'),
           messages: [...messages, question],
-          model: DEFAULT_MODEL,
+          model: model ?? DEFAULT_MODEL,
           stop_sequences: stopSequences,
           temperature: temperature ?? DEFAULT_TEMPERATURE,
         }),

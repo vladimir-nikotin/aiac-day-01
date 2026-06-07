@@ -2,4 +2,5 @@
 .env.*
 !.env.example
 dist
+models.jsonc
 node_modules

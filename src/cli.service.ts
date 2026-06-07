@@ -6,6 +6,15 @@ import { ClaudeService, ClaudeServiceResponse } from './claude.service';
 const getAsk = (rl: readline.Interface) => (prompt: string) =>
   new Promise<string>((resolve) => rl.question(prompt, resolve));
 
+const models: Record<string, string> = {
+  haiku: 'claude-haiku-4-5-20251001',
+  sonnet: 'claude-sonnet-4-6',
+  opus: 'claude-opus-4-6',
+  opus6: 'claude-opus-4-6',
+  opus7: 'claude-opus-4-7',
+  opus8: 'claude-opus-4-8',
+};
+
 @Injectable()
 export class CliService {
   constructor(private readonly claude: ClaudeService) {}
@@ -17,18 +26,26 @@ export class CliService {
     });
     const ask = getAsk(rl);
     let lines: string[] = [];
+    let model: string | undefined;
     let stopSequences: string[] = [];
     let temperature: number | undefined;
 
     while (true) {
       const userInput = await ask('> ').then((input: string) => input.trim());
 
+      if (userInput.startsWith('/model')) {
+        const modelValue = models[userInput.slice(7).trim()];
+        if (modelValue) {
+          model = modelValue;
+        }
+      }
       if (userInput.startsWith('/stop')) {
-        stopSequences.push(userInput.slice(6));
+        stopSequences.push(userInput.slice(6).trim());
       }
       if (userInput.startsWith('/temp')) {
         temperature = Number.parseFloat(userInput.slice(6));
       }
+
       if (userInput !== '') {
         lines.push(userInput);
         continue;
@@ -44,9 +61,10 @@ export class CliService {
       let sessionId = this.claude.startSession();
       let answer = await this.claude.fetchApi({
         message,
+        model: model ?? models.haiku,
         sessionId,
         stopSequences,
-        temperature: temperature ?? 0,
+        temperature,
       });
       this.printAnswer(answer);
       this.claude.closeSession(sessionId);
@@ -54,9 +72,10 @@ export class CliService {
       sessionId = this.claude.startSession();
       answer = await this.claude.fetchApi({
         message,
+        model: model ?? models.sonnet,
         sessionId,
         stopSequences,
-        temperature: temperature ?? 0.7,
+        temperature,
       });
       this.printAnswer(answer);
       this.claude.closeSession(sessionId);
@@ -64,9 +83,10 @@ export class CliService {
       sessionId = this.claude.startSession();
       answer = await this.claude.fetchApi({
         message,
+        model: model ?? models.opus7,
         sessionId,
         stopSequences,
-        temperature: temperature ?? 1.2,
+        temperature,
       });
       this.printAnswer(answer);
       this.claude.closeSession(sessionId);
@@ -74,6 +94,7 @@ export class CliService {
       rl.resume();
 
       lines = [];
+      model = undefined;
       stopSequences = [];
       temperature = undefined;
     }
