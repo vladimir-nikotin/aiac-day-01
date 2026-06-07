@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import readline from 'readline';
 
-import { ClaudeService } from './claude.service';
+import { ClaudeService, ClaudeServiceResponse } from './claude.service';
+
+const getAsk = (rl: readline.Interface) => (prompt: string) =>
+  new Promise<string>((resolve) => rl.question(prompt, resolve));
 
 @Injectable()
 export class CliService {
@@ -12,10 +15,7 @@ export class CliService {
       input: process.stdin,
       output: process.stdout,
     });
-    const ask = (prompt: string) =>
-      new Promise<string>((resolve) => rl.question(prompt, resolve));
-    const sessionId = this.claude.startSession();
-
+    const ask = getAsk(rl);
     let lines: string[] = [];
     const stopSequences: string[] = [];
 
@@ -33,30 +33,87 @@ export class CliService {
         continue;
       }
 
-      const { answer, input, output, reason, sequence } =
-        await this.claude.fetchApi({
-          message: lines.join('\n'),
-          sessionId,
-          stopSequences,
-        });
-
       rl.pause();
 
-      process.stdout.write(`< in ${input} out ${output}`);
-      if (reason === 'max_tokens') {
-        process.stdout.write(` ! TOKENS`);
-      }
-      if (sequence !== null) {
-        process.stdout.write(` ! ${sequence}`);
-      }
-      process.stdout.write('\n');
+      // 1: Просто запрос
+      let sessionId = this.claude.startSession();
+      let answer = await this.claude.fetchApi({
+        message: lines.join('\n'),
+        sessionId,
+        stopSequences,
+      });
+      this.printAnswer(answer);
+      this.claude.closeSession(sessionId);
 
-      process.stdout.write(answer);
-      process.stdout.write('\n\n');
+      // 2: По шагам
+      sessionId = this.claude.startSession();
+      answer = await this.claude.fetchApi({
+        message: [...lines, 'Решай задачу пошагово.'].join('\n'),
+        sessionId,
+        stopSequences,
+      });
+      this.printAnswer(answer);
+      this.claude.closeSession(sessionId);
+
+      // 3: С мета-промптом
+      sessionId = this.claude.startSession();
+      answer = await this.claude.fetchApi({
+        message: [
+          'Создай промпт для claude, который поможет качественно ответить на следующие вопросы.',
+          ...lines,
+        ].join('\n'),
+        sessionId,
+        stopSequences,
+      });
+      this.printAnswer(answer);
+      this.claude.closeSession(sessionId);
+
+      sessionId = this.claude.startSession();
+      answer = await this.claude.fetchApi({
+        message: answer.answer,
+        sessionId,
+        stopSequences: [],
+      });
+      this.printAnswer(answer);
+      this.claude.closeSession(sessionId);
+
+      // 4: С группой
+      sessionId = this.claude.startSession();
+      answer = await this.claude.fetchApi({
+        message: [
+          ...lines,
+          'Для ответа на вопрос создай экспертную группу из системного аналитика, software engineer, software architector и критика.',
+          'В ответе изложи мнения каждого члена экспертной группы. Подведи краткий итог с обзором мнений экспертов.',
+        ].join('\n'),
+        sessionId,
+        stopSequences,
+      });
+      this.printAnswer(answer);
+      this.claude.closeSession(sessionId);
 
       rl.resume();
 
       lines = [];
     }
+  }
+
+  printAnswer({
+    answer,
+    input,
+    output,
+    reason,
+    sequence,
+  }: ClaudeServiceResponse) {
+    process.stdout.write(`< in ${input} out ${output}`);
+    if (reason === 'max_tokens') {
+      process.stdout.write(` ! TOKENS`);
+    }
+    if (sequence !== null) {
+      process.stdout.write(` ! ${sequence}`);
+    }
+    process.stdout.write('\n');
+
+    process.stdout.write(answer);
+    process.stdout.write('\n\n\n\n\n\n\n\n\n');
   }
 }

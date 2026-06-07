@@ -51,7 +51,7 @@ type ClaudeServiceRequest = {
   sessionId: UUID;
   stopSequences: string[];
 };
-type ClaudeServiceResponse = {
+export type ClaudeServiceResponse = {
   answer: string;
   input: number;
   output: number;
