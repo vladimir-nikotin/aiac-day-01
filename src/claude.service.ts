@@ -50,6 +50,7 @@ type ClaudeServiceRequest = {
   message: string;
   sessionId: UUID;
   stopSequences: string[];
+  temperature?: number;
 };
 export type ClaudeServiceResponse = {
   answer: string;
@@ -60,6 +61,7 @@ export type ClaudeServiceResponse = {
 };
 
 const DEFAULT_MODEL = 'claude-sonnet-4-6';
+const DEFAULT_TEMPERATURE = 1;
 
 @Injectable()
 export class ClaudeService {
@@ -71,6 +73,7 @@ export class ClaudeService {
     message,
     sessionId,
     stopSequences,
+    temperature,
   }: ClaudeServiceRequest): Promise<ClaudeServiceResponse> {
     const messages = this.history.get(sessionId);
 
@@ -102,6 +105,7 @@ export class ClaudeService {
           messages: [...messages, question],
           model: DEFAULT_MODEL,
           stop_sequences: stopSequences,
+          temperature: temperature ?? DEFAULT_TEMPERATURE,
         }),
         dispatcher,
         headers,

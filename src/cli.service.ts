@@ -17,13 +17,17 @@ export class CliService {
     });
     const ask = getAsk(rl);
     let lines: string[] = [];
-    const stopSequences: string[] = [];
+    let stopSequences: string[] = [];
+    let temperature: number | undefined;
 
     while (true) {
       const userInput = await ask('> ').then((input: string) => input.trim());
 
       if (userInput.startsWith('/stop')) {
         stopSequences.push(userInput.slice(6));
+      }
+      if (userInput.startsWith('/temp')) {
+        temperature = Number.parseFloat(userInput.slice(6));
       }
       if (userInput !== '') {
         lines.push(userInput);
@@ -35,58 +39,34 @@ export class CliService {
 
       rl.pause();
 
-      // 1: Просто запрос
+      const message = lines.join('\n');
+
       let sessionId = this.claude.startSession();
       let answer = await this.claude.fetchApi({
-        message: lines.join('\n'),
+        message,
         sessionId,
         stopSequences,
-      });
-      this.printAnswer(answer);
-      this.claude.closeSession(sessionId);
-
-      // 2: По шагам
-      sessionId = this.claude.startSession();
-      answer = await this.claude.fetchApi({
-        message: [...lines, 'Решай задачу пошагово.'].join('\n'),
-        sessionId,
-        stopSequences,
-      });
-      this.printAnswer(answer);
-      this.claude.closeSession(sessionId);
-
-      // 3: С мета-промптом
-      sessionId = this.claude.startSession();
-      answer = await this.claude.fetchApi({
-        message: [
-          'Создай промпт для claude, который поможет качественно ответить на следующие вопросы.',
-          ...lines,
-        ].join('\n'),
-        sessionId,
-        stopSequences,
+        temperature: temperature ?? 0,
       });
       this.printAnswer(answer);
       this.claude.closeSession(sessionId);
 
       sessionId = this.claude.startSession();
       answer = await this.claude.fetchApi({
-        message: answer.answer,
+        message,
         sessionId,
-        stopSequences: [],
+        stopSequences,
+        temperature: temperature ?? 0.7,
       });
       this.printAnswer(answer);
       this.claude.closeSession(sessionId);
 
-      // 4: С группой
       sessionId = this.claude.startSession();
       answer = await this.claude.fetchApi({
-        message: [
-          ...lines,
-          'Для ответа на вопрос создай экспертную группу из системного аналитика, software engineer, software architector и критика.',
-          'В ответе изложи мнения каждого члена экспертной группы. Подведи краткий итог с обзором мнений экспертов.',
-        ].join('\n'),
+        message,
         sessionId,
         stopSequences,
+        temperature: temperature ?? 1.2,
       });
       this.printAnswer(answer);
       this.claude.closeSession(sessionId);
@@ -94,6 +74,8 @@ export class CliService {
       rl.resume();
 
       lines = [];
+      stopSequences = [];
+      temperature = undefined;
     }
   }
 
