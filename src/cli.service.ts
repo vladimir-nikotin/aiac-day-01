@@ -30,8 +30,6 @@ export class CliService {
     let stopSequences: string[] = [];
     let temperature: number | undefined;
 
-    const sessionId = this.agent.startSession();
-
     while (true) {
       const userInput = await ask('> ').then((input: string) => input.trim());
 
@@ -66,7 +64,6 @@ export class CliService {
       const answer = await this.agent.ask({
         model: model ?? models.haiku,
         question,
-        sessionId,
         stopSequences,
         temperature,
       });
@@ -79,8 +76,6 @@ export class CliService {
       stopSequences = [];
       temperature = undefined;
     }
-
-    this.agent.closeSession(sessionId);
   }
 
   printAnswer({

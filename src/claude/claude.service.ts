@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { DeepReadonly } from '../types';
 import { ProxyAgent, fetch } from 'undici';
 
 // type ContentType = 'document' | 'image' | 'text' | 'tool_use' | 'tool_result';
@@ -63,7 +64,7 @@ export class ClaudeService {
     model,
     stopSequences,
     temperature,
-  }: ClaudeServiceRequest): Promise<ClaudeResponse> {
+  }: DeepReadonly<ClaudeServiceRequest>): Promise<ClaudeResponse> {
     const headers = {
       'anthropic-version': this.config.getOrThrow<string>('claude.api.version'),
       'content-type': 'application/json',

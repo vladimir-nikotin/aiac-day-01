@@ -6,7 +6,7 @@ import { join } from 'path';
 // import { AppController } from './app.controller';
 // import { AppService } from './app.service';
 
-import { AgentModule } from './agent';
+import { AgentModule, config as agentConfig } from './agent';
 import { config as claudeConfig } from './claude';
 import { CliService } from './cli.service';
 
@@ -16,7 +16,7 @@ import { CliService } from './cli.service';
     ConfigModule.forRoot({
       envFilePath: join(__dirname, '..', '.env'),
       isGlobal: true,
-      load: [claudeConfig],
+      load: [agentConfig, claudeConfig],
     }),
   ],
   controllers: [

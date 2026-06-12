@@ -1,14 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 
 import { ClaudeService, ClaudeStopReason, Message } from '../claude';
-
-type UUID = string;
+import { HistoryService } from './history.service';
 
 type AgentServiceRequest = {
   model?: string;
   question: string;
-  sessionId?: UUID;
   stopSequences: string[];
   temperature?: number;
 };
@@ -22,26 +19,17 @@ export type AgentServiceResponse = {
 
 @Injectable()
 export class AgentService {
-  private readonly history = new Map<UUID, Message[]>();
-
-  constructor(private readonly claude: ClaudeService) {}
+  constructor(
+    private readonly claude: ClaudeService,
+    private readonly history: HistoryService,
+  ) {}
 
   async ask({
     model,
     question,
-    sessionId: requestSessionId,
     stopSequences,
     temperature,
   }: AgentServiceRequest): Promise<AgentServiceResponse> {
-    const sessionId = requestSessionId ?? this.startSession();
-    const history = this.history.get(sessionId);
-
-    if (history === undefined) {
-      throw new Error(
-        `Session ID ${sessionId} doesn't exist, call startSession first`,
-      );
-    }
-
     const message: Message = {
       content: [
         {
@@ -51,6 +39,7 @@ export class AgentService {
       ],
       role: 'user',
     };
+    const history = this.history.get();
 
     const {
       content,
@@ -64,7 +53,7 @@ export class AgentService {
       temperature,
     });
 
-    history.push(message, {
+    await this.history.add(message, {
       content,
       role: 'assistant',
     });
@@ -89,14 +78,5 @@ export class AgentService {
       reason,
       sequence,
     };
-  }
-
-  startSession(): UUID {
-    const sessionId = randomUUID();
-    this.history.set(sessionId, []);
-    return sessionId;
-  }
-  closeSession(sessionId: UUID) {
-    this.history.delete(sessionId);
   }
 }
