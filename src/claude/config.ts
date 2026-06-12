@@ -1,4 +1,4 @@
-export default () => ({
+export const config = () => ({
   claude: {
     api: {
       key: process.env.API_KEY,

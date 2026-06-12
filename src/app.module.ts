@@ -6,20 +6,22 @@ import { join } from 'path';
 // import { AppController } from './app.controller';
 // import { AppService } from './app.service';
 
-import claude from './claude.config';
-import { ClaudeService } from './claude/claude.service';
+import { AgentModule } from './agent';
+import { config as claudeConfig } from './claude';
 import { CliService } from './cli.service';
 
 @Module({
   imports: [
+    AgentModule,
     ConfigModule.forRoot({
       envFilePath: join(__dirname, '..', '.env'),
-      load: [claude],
+      isGlobal: true,
+      load: [claudeConfig],
     }),
   ],
   controllers: [
     // AppController
   ],
-  providers: [/* AppService, */ ClaudeService, CliService],
+  providers: [/* AppService, */ CliService],
 })
 export class AppModule {}

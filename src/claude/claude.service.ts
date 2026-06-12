@@ -1,15 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { randomUUID } from 'crypto';
 import { ProxyAgent, fetch } from 'undici';
 
-type Role = 'assistant' | 'user';
-type Message = {
-  content: string;
-  role: Role;
-};
-
-type ClaudeResponseTextContent = {
+// type ContentType = 'document' | 'image' | 'text' | 'tool_use' | 'tool_result';
+type ClaudeTextContent = {
   type: 'text';
   text: string;
 };
@@ -20,11 +14,23 @@ type ClaudeResponseToolContent = {
   name: string;
   input: Record<string, any>;
 };
-type ClaudeResponseContent =
-  | ClaudeResponseTextContent
-  | ClaudeResponseToolContent;
+type ClaudeContent = ClaudeTextContent | ClaudeResponseToolContent;
 
-type ClaudeStopReason =
+type Role = 'assistant' | 'user';
+
+export type Message = {
+  content: ClaudeContent[];
+  role: Role;
+};
+
+type ClaudeServiceRequest = {
+  messages: Message[];
+  model?: string;
+  stopSequences: string[];
+  temperature?: number;
+};
+
+export type ClaudeStopReason =
   | 'end_turn'
   | 'max_tokens'
   | 'stop_sequence'
@@ -39,26 +45,10 @@ type ClaudeResponse = {
   type: 'message';
   role: 'assistant';
   model: string;
-  content: ClaudeResponseContent[];
+  content: ClaudeContent[];
   stop_reason: ClaudeStopReason;
   stop_sequence: string | null;
   usage: ClaudeTokenUsage;
-};
-
-type UUID = string;
-type ClaudeServiceRequest = {
-  message: string;
-  model?: string;
-  sessionId: UUID;
-  stopSequences: string[];
-  temperature?: number;
-};
-export type ClaudeServiceResponse = {
-  answer: string;
-  input: number;
-  output: number;
-  reason: ClaudeStopReason;
-  sequence: string | null;
 };
 
 const DEFAULT_MODEL = 'claude-sonnet-4-6';
@@ -66,25 +56,14 @@ const DEFAULT_TEMPERATURE = 1;
 
 @Injectable()
 export class ClaudeService {
-  private readonly history = new Map<UUID, Message[]>();
-
   constructor(private readonly config: ConfigService) {}
 
   async fetchApi({
-    message,
+    messages,
     model,
-    sessionId,
     stopSequences,
     temperature,
-  }: ClaudeServiceRequest): Promise<ClaudeServiceResponse> {
-    const messages = this.history.get(sessionId);
-
-    if (messages === undefined) {
-      throw new Error(
-        `Session ID ${sessionId} doesn't exist, call startSession first`,
-      );
-    }
-
+  }: ClaudeServiceRequest): Promise<ClaudeResponse> {
     const headers = {
       'anthropic-version': this.config.getOrThrow<string>('claude.api.version'),
       'content-type': 'application/json',
@@ -94,17 +73,12 @@ export class ClaudeService {
       uri: this.config.getOrThrow<string>('claude.proxy.url'),
     });
 
-    const question: Message = {
-      content: message,
-      role: 'user',
-    };
-
     const response = await fetch(
       this.config.getOrThrow<string>('claude.api.url'),
       {
         body: JSON.stringify({
           max_tokens: this.config.getOrThrow<number>('claude.maxTokens'),
-          messages: [...messages, question],
+          messages,
           model: model ?? DEFAULT_MODEL,
           stop_sequences: stopSequences,
           temperature: temperature ?? DEFAULT_TEMPERATURE,
@@ -124,44 +98,6 @@ export class ClaudeService {
       throw new Error(`Something went wrong ${status} ${statusText}`);
     }
 
-    const {
-      content,
-      stop_reason: reason,
-      stop_sequence: sequence,
-      usage: { input_tokens: input, output_tokens: output },
-    } = (await response.json()) as ClaudeResponse;
-    let answer = '';
-
-    for (const { type, ...others } of content) {
-      if (type === 'text') {
-        if (answer.length > 0) {
-          answer += '\n\n';
-        }
-        answer += others.text;
-      }
-    }
-
-    messages.push(question);
-    messages.push({
-      content: answer,
-      role: 'assistant',
-    });
-
-    return {
-      answer,
-      input,
-      output,
-      reason,
-      sequence,
-    };
-  }
-
-  startSession(): UUID {
-    const sessionId = randomUUID();
-    this.history.set(sessionId, []);
-    return sessionId;
-  }
-  closeSession(sessionId: UUID) {
-    this.history.delete(sessionId);
+    return response.json() as Promise<ClaudeResponse>;
   }
 }

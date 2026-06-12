@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import readline from 'readline';
 
-import { ClaudeService, ClaudeServiceResponse } from './claude/claude.service';
+import { AgentService, AgentServiceResponse } from './agent';
 
 const getAsk = (rl: readline.Interface) => (prompt: string) =>
   new Promise<string>((resolve) => rl.question(prompt, resolve));
@@ -17,7 +17,7 @@ const models: Record<string, string> = {
 
 @Injectable()
 export class CliService {
-  constructor(private readonly claude: ClaudeService) {}
+  constructor(private readonly agent: AgentService) {}
 
   async run() {
     const rl = readline.createInterface({
@@ -30,6 +30,8 @@ export class CliService {
     let stopSequences: string[] = [];
     let temperature: number | undefined;
 
+    const sessionId = this.agent.startSession();
+
     while (true) {
       const userInput = await ask('> ').then((input: string) => input.trim());
 
@@ -38,6 +40,9 @@ export class CliService {
         if (modelValue) {
           model = modelValue;
         }
+      }
+      if (userInput.startsWith('/exit')) {
+        break;
       }
       if (userInput.startsWith('/stop')) {
         stopSequences.push(userInput.slice(6).trim());
@@ -56,40 +61,16 @@ export class CliService {
 
       rl.pause();
 
-      const message = lines.join('\n');
+      const question = lines.join('\n');
 
-      let sessionId = this.claude.startSession();
-      let answer = await this.claude.fetchApi({
-        message,
+      const answer = await this.agent.ask({
         model: model ?? models.haiku,
+        question,
         sessionId,
         stopSequences,
         temperature,
       });
       this.printAnswer(answer);
-      this.claude.closeSession(sessionId);
-
-      sessionId = this.claude.startSession();
-      answer = await this.claude.fetchApi({
-        message,
-        model: model ?? models.sonnet,
-        sessionId,
-        stopSequences,
-        temperature,
-      });
-      this.printAnswer(answer);
-      this.claude.closeSession(sessionId);
-
-      sessionId = this.claude.startSession();
-      answer = await this.claude.fetchApi({
-        message,
-        model: model ?? models.opus7,
-        sessionId,
-        stopSequences,
-        temperature,
-      });
-      this.printAnswer(answer);
-      this.claude.closeSession(sessionId);
 
       rl.resume();
 
@@ -98,6 +79,8 @@ export class CliService {
       stopSequences = [];
       temperature = undefined;
     }
+
+    this.agent.closeSession(sessionId);
   }
 
   printAnswer({
@@ -106,7 +89,7 @@ export class CliService {
     output,
     reason,
     sequence,
-  }: ClaudeServiceResponse) {
+  }: AgentServiceResponse) {
     process.stdout.write(`< in ${input} out ${output}`);
     if (reason === 'max_tokens') {
       process.stdout.write(` ! TOKENS`);
@@ -117,6 +100,6 @@ export class CliService {
     process.stdout.write('\n');
 
     process.stdout.write(answer);
-    process.stdout.write('\n\n\n\n\n\n\n\n\n');
+    process.stdout.write('\n\n');
   }
 }
